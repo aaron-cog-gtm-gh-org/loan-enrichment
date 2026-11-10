@@ -1,3 +1,5 @@
+from decimal import Decimal
+
 import duckdb
 import pytest
 
@@ -26,6 +28,17 @@ def test_usd_product_and_idempotency(database):
     run()
     with duckdb.connect(str(database)) as db:
         assert db.execute("SELECT * FROM enr_loans").fetchall() == first
+
+
+@pytest.mark.parametrize("currency, rate", [("GBP", "1.2734"), ("EUR", "1.0847")])
+def test_full_fx_rate_precision(database, currency, rate):
+    balance = Decimal("495380.56")
+    with duckdb.connect(str(database)) as db:
+        db.execute("UPDATE stg_loans SET currency = ?, balance = ?", [currency, balance])
+    run()
+    with duckdb.connect(str(database)) as db:
+        assert db.execute("SELECT balance_usd FROM enr_loans").fetchone()[0] == round(
+            balance * Decimal(rate), 2)
 
 
 def test_empty_input(database):
