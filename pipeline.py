@@ -14,7 +14,7 @@ def run():
         db.execute("""
             CREATE OR REPLACE TABLE enr_loans AS
             SELECT s.* EXCLUDE (balance_usd),
-                   (round(f.rate, 2) * s.balance)::DECIMAL(18,2) AS balance_usd,
+                   (f.rate::DECIMAL(38,8) * s.balance)::DECIMAL(18,2) AS balance_usd,
                    p.product_name
             FROM stg_loans s
             JOIN fx_rates f ON s.currency = f.currency
