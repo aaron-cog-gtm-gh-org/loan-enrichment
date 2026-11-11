@@ -41,3 +41,17 @@ def test_missing_upstream(database):
         db.execute("DROP TABLE stg_loans")
     with pytest.raises(duckdb.CatalogException):
         run()
+
+
+def test_non_usd_uses_full_precision_fx_rate(database):
+    with duckdb.connect(str(database)) as db:
+        db.execute("DELETE FROM stg_loans")
+        db.execute("""
+            INSERT INTO stg_loans VALUES
+                ('L0016', 'EUR', 'REV', 473157.56, 513234.01),
+                ('L2', 'GBP', 'MTG', 100000.00, 127340.00)
+        """)
+    run()
+    with duckdb.connect(str(database)) as db:
+        rows = db.execute("SELECT loan_id, balance_usd FROM enr_loans ORDER BY loan_id").fetchall()
+    assert [(loan_id, float(usd)) for loan_id, usd in rows] == [("L0016", 513234.01), ("L2", 127340.00)]
