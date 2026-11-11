@@ -1,3 +1,5 @@
+from decimal import Decimal
+
 import duckdb
 import pytest
 
@@ -34,6 +36,17 @@ def test_empty_input(database):
     run()
     with duckdb.connect(str(database)) as db:
         assert db.execute("SELECT count(*) FROM enr_loans").fetchone()[0] == 0
+
+
+def test_l0016_full_precision_fx(database):
+    with duckdb.connect(str(database)) as db:
+        db.execute("""
+            UPDATE stg_loans SET loan_id = 'L0016', currency = 'EUR',
+                balance = 473157.56, balance_usd = 513234.01
+        """)
+    run()
+    with duckdb.connect(str(database)) as db:
+        assert db.execute("SELECT balance_usd FROM enr_loans WHERE loan_id = 'L0016'").fetchone() == (Decimal('513234.01'),)
 
 
 def test_missing_upstream(database):
