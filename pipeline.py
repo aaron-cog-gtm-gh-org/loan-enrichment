@@ -7,14 +7,17 @@ ROOT = Path(__file__).resolve().parent
 
 def run():
     with connect() as db:
-        db.execute("CREATE OR REPLACE TABLE fx_rates AS SELECT * FROM read_csv_auto(?)",
-                   [str(ROOT / "data/fx_rates.csv")])
+        db.execute("""
+            CREATE OR REPLACE TABLE fx_rates AS
+            SELECT * FROM read_csv(?, header = true,
+                                   columns = {'currency': 'VARCHAR', 'rate': 'DECIMAL(38,8)'})
+        """, [str(ROOT / "data/fx_rates.csv")])
         db.execute("CREATE OR REPLACE TABLE product_map AS SELECT * FROM read_csv_auto(?)",
                    [str(ROOT / "data/product_map.csv")])
         db.execute("""
             CREATE OR REPLACE TABLE enr_loans AS
             SELECT s.* EXCLUDE (balance_usd),
-                   (round(f.rate, 2) * s.balance)::DECIMAL(18,2) AS balance_usd,
+                   (f.rate * s.balance)::DECIMAL(18,2) AS balance_usd,
                    p.product_name
             FROM stg_loans s
             JOIN fx_rates f ON s.currency = f.currency

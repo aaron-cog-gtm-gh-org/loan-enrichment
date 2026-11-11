@@ -41,3 +41,40 @@ def test_missing_upstream(database):
         db.execute("DROP TABLE stg_loans")
     with pytest.raises(duckdb.CatalogException):
         run()
+
+
+def test_non_usd_uses_full_precision_fx_rate(database):
+    with duckdb.connect(str(database)) as db:
+        db.execute("DELETE FROM stg_loans")
+        db.execute("""
+            INSERT INTO stg_loans VALUES
+                ('L0016', 'EUR', 'REV', 473157.56, 513234.01),
+                ('L2', 'GBP', 'MTG', 100000.00, 127340.00)
+        """)
+    run()
+    with duckdb.connect(str(database)) as db:
+        rows = db.execute("SELECT loan_id, balance_usd FROM enr_loans ORDER BY loan_id").fetchall()
+    assert [(loan_id, float(usd)) for loan_id, usd in rows] == [("L0016", 513234.01), ("L2", 127340.00)]
+
+
+def test_half_cent_rounds_half_up_without_float_error(database):
+    with duckdb.connect(str(database)) as db:
+        db.execute("DELETE FROM stg_loans")
+        db.execute("""
+            INSERT INTO stg_loans VALUES
+                ('H1', 'EUR', 'MTG', 38220250.00, NULL),
+                ('H2', 'EUR', 'MTG', -38220250.00, NULL)
+        """)
+    run()
+    with duckdb.connect(str(database)) as db:
+        rows = db.execute("SELECT loan_id, balance_usd::VARCHAR FROM enr_loans ORDER BY loan_id").fetchall()
+    assert rows == [("H1", "41457505.18"), ("H2", "-41457505.18")]
+
+
+def test_large_balance_does_not_overflow(database):
+    with duckdb.connect(str(database)) as db:
+        db.execute("DELETE FROM stg_loans")
+        db.execute("INSERT INTO stg_loans VALUES ('B1', 'GBP', 'MTG', 123456789012.34, NULL)")
+    run()
+    with duckdb.connect(str(database)) as db:
+        assert db.execute("SELECT balance_usd::VARCHAR FROM enr_loans").fetchone()[0] == "157209875128.31"
