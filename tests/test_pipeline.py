@@ -28,6 +28,22 @@ def test_usd_product_and_idempotency(database):
         assert db.execute("SELECT * FROM enr_loans").fetchall() == first
 
 
+def test_non_usd_uses_full_precision_fx_rate(database):
+    with duckdb.connect(str(database)) as db:
+        db.execute("""
+            INSERT INTO stg_loans VALUES
+                ('L0016', 'EUR', 'REV', 473157.56, 513234.01),
+                ('L0011', 'GBP', 'TERM', 100.00, 127.34)
+        """)
+    run()
+    with duckdb.connect(str(database)) as db:
+        rows = db.execute("""
+            SELECT loan_id, balance_usd::VARCHAR FROM enr_loans
+            WHERE currency != 'USD' ORDER BY loan_id
+        """).fetchall()
+    assert rows == [("L0011", "127.34"), ("L0016", "513234.01")]
+
+
 def test_empty_input(database):
     with duckdb.connect(str(database)) as db:
         db.execute("DELETE FROM stg_loans")
